@@ -91,3 +91,29 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_trace(void){
+  int sysnum;
+  argint(0, &sysnum);
+  myproc() -> traced = sysnum;
+  return 0;
+}
+
+#include "sysinfo.h"
+// #include "proc.c"
+uint64
+sys_sysinfo(void){
+  struct sysinfo info;
+  uint64 si; // user pointer to struct sysinfo
+
+  argaddr(0, &si);
+  info.freemem = fetchfreemem();
+  info.nproc = fetchprocessnum();
+  struct proc *p = myproc();
+  if (copyout(p->pagetable, si, (char *)&info, sizeof(info)) < 0){
+    return -1;
+  }
+  return 0;
+
+}
