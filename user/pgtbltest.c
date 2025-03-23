@@ -29,7 +29,8 @@ void
 ugetpid_test()
 {
   int i;
-
+  // printf("-- getpid = %d\n", getpid());
+  // printf("-- ugetpid = %d\n", ugetpid());
   printf("ugetpid_test starting\n");
   testname = "ugetpid_test";
 

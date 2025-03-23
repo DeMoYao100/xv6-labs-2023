@@ -8,6 +8,7 @@
 #include "elf.h"
 
 static int loadseg(pde_t *, uint64, struct inode *, uint, uint);
+void vm_print(pagetable_t pagetable);
 
 int flags2perm(int flags)
 {
@@ -128,6 +129,10 @@ exec(char *path, char **argv)
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
+  if (p->pid == 1){
+    vm_print(p->pagetable);
+  }
+
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
@@ -138,6 +143,31 @@ exec(char *path, char **argv)
     end_op();
   }
   return -1;
+}
+
+// #include "vm.c"
+void vm_print(pagetable_t pagetable){
+  printf("page table %p\n", pagetable);
+  for (int i=0;i<512;i++){
+    pte_t pte1 = pagetable[i];
+    if (pte1 & PTE_V){
+      printf(" ..%d: pte %p pa %p\n",i ,pte1, PTE2PA(pte1));
+      for (int j=0;j<512;j++){
+        pagetable_t tmp = (pagetable_t)PTE2PA(pte1);
+        pte_t pte2 = tmp[j];
+        if (pte2 & PTE_V){
+          printf(" .. ..%d: pte %p pa %p\n",j, pte2, PTE2PA(pte2));
+          for (int k=0;k<512;k++){
+            pagetable_t tmp = (pagetable_t)PTE2PA(pte2);
+            pte_t pte3 = tmp[k];
+            if (pte3 & PTE_V)
+            printf(" .. .. ..%d: pte %p pa %p\n",k, pte3, PTE2PA(pte3));
+          }
+        }
+      }
+    }
+  }
+  
 }
 
 // Load a program segment into pagetable at virtual address va.
