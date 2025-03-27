@@ -125,6 +125,7 @@ panic(char *s)
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
+  backtrace();
 }
 
 void
@@ -132,4 +133,39 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+static inline uint64
+r_fp(uint64 sp, uint64 pgd)
+{
+  uint64 retaddr=0, stackpointer=0;
+  asm volatile("lw %0,-16(%1)" 
+  : "=r" (stackpointer)
+  : "r"  (sp)
+  );
+  asm volatile("lw %0,-8(%1)" 
+  : "=r" (retaddr)
+  : "r"  (sp)
+  );
+
+  retaddr &= 0xffffffff;
+  stackpointer &= 0x3fffffffff;
+  if (retaddr){
+    printf("%p\n", retaddr);
+  }
+  if (PGROUNDDOWN(stackpointer) == pgd){
+    r_fp(stackpointer, pgd);
+  }
+
+  return retaddr;
+}
+
+void 
+backtrace(void)
+{
+  printf("backtrace:\n");
+  uint64 sp;
+  asm volatile("mv %0, s0" : "=r" (sp) );
+  uint64 pgd = PGROUNDDOWN(sp);
+  r_fp((uint64)sp, pgd);
 }
