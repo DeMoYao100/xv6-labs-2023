@@ -67,7 +67,39 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } 
+  else if (r_scause() == 0xf){
+    pte_t *pte;
+    uint64 pa;
+    uint flags;
+    char *mem;
+    // printf("--write error occurs--\n");
+    if((pte = walk(p->pagetable, r_stval(), 0)) == 0)
+      panic("[-] COW usertrap: pte should exist");
+    pa = PTE2PA(*pte);
+    
+    if (*pte & PTE_rw){
+      *pte |= PTE_W;
+      *pte &= ~PTE_rw;
+      flags = PTE_FLAGS(*pte);
+      if((mem = kalloc()) == 0){
+        printf("[-] COW: kalloc error\n");
+        setkilled(p);
+        if(killed(p))
+        exit(-1);
+      }
+      memmove(mem, (char*)pa, PGSIZE);
+      kfree((char*)pa);
+      if(mappages(p->pagetable, (r_stval() / PGSIZE) * PGSIZE, PGSIZE, (uint64)mem, flags) != 0){
+        kfree(mem);
+        printf("[-] COW: map error\n");
+      }
+    }
+    else{
+      panic("should not exist\n");
+    }
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     setkilled(p);

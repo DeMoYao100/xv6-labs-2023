@@ -1,0 +1,21 @@
+{
+    "files.associations": {
+        "extern-c-redecl3.C": "cpp",
+        "*.s": "c",
+        "*.inc": "c",
+        "memlayout.h": "c",
+        "user.h": "c",
+        "defs.h": "c",
+        "types.h": "c",
+        "param.h": "c",
+        "*.def": "c",
+        "sink-3.C": "cpp",
+        "random": "cpp",
+        "*.x": "cpp",
+        "executor": "c",
+        "mutex": "c",
+        "shared_mutex": "c",
+        "syncstream": "c",
+        "ref_struct.h": "c"
+    }
+}
