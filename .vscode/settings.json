@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "socket": "c",
+        "*.inc": "c"
+    }
+}
