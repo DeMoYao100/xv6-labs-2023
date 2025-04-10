@@ -307,9 +307,9 @@ sys_open(void)
   char path[MAXPATH];
   int fd, omode;
   struct file *f;
-  struct inode *ip;
+  struct inode *ip, *symip;
   int n;
-
+  // printf("[+]open\n");
   argint(1, &omode);
   if((n = argstr(0, path, MAXPATH)) < 0)
     return -1;
@@ -322,7 +322,8 @@ sys_open(void)
       end_op();
       return -1;
     }
-  } else {
+  } 
+  else {
     if((ip = namei(path)) == 0){
       end_op();
       return -1;
@@ -332,6 +333,27 @@ sys_open(void)
       iunlockput(ip);
       end_op();
       return -1;
+    }
+    else if (ip->type == T_SYMLINK && !(omode & O_NOFOLLOW)){
+      char tmpname[0xff];
+      memmove(tmpname, ip->symlink, strlen(ip->symlink));
+      // printf("[+]loop begin\n");
+      while(ip->type == T_SYMLINK){
+        if((symip = namei(ip->symlink)) == 0){
+          iunlockput(ip);
+          end_op();
+          return -1;
+        }
+        ilock(symip);
+        iunlockput(ip);
+        ip = symip;
+        if (!memcmp(ip->symlink, tmpname, strlen(tmpname))){
+          iunlockput(ip);
+          end_op();
+          return -1;
+          // panic("loop!");
+        }
+      }
     }
   }
 
@@ -501,5 +523,24 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+
+uint64 sys_symlink(void)
+{
+  char target[MAXPATH];
+  char path[MAXPATH];
+  struct inode *ip;
+  
+  begin_op();
+  argstr(0, target, MAXPATH);
+  if(argstr(1, path, MAXPATH) < 0 || (ip = create(path, T_SYMLINK, 0, 0)) == 0){
+    end_op();
+    return -1;
+  };
+  memmove(ip->symlink, target, strlen(target)+1);
+  iunlockput(ip);
+  end_op();
   return 0;
 }
