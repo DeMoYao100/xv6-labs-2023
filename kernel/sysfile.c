@@ -503,3 +503,155 @@ sys_pipe(void)
   }
   return 0;
 }
+uint64
+sys_mmap(void)
+{
+  uint64 addr, base_addr = 0;
+  int fd;
+  struct file *f;
+  size_t len;
+  int prot, flags, j, tmp;
+  off_t offset;
+  argaddr(0, &addr);
+  argint(1, &tmp);
+  len = tmp;
+  argint(2, &prot);
+  argint(3, &flags);
+  if (argfd(4, &fd, &f) < 0){
+    return -1;
+  }
+  argint(5, &tmp);
+  offset = tmp;
+  struct proc* p = myproc();
+  pte_t *addrpte;
+  addr = PGROUNDDOWN(addr);
+  tmp = 0;
+  int last = -1;
+  while(len > 0){
+    while(1){
+      addrpte = walk(p->pagetable, addr, 0);
+      if (addr > MAXVA){
+        panic("no more room");
+      }
+      if (*addrpte & PTE_V){
+        addr += PGSIZE;
+        continue;
+      }
+      break;
+    }
+    // printf("used addr:%p sz:%p\n",addr, p->sz);
+    if (prot & PROT_READ){
+      if (!f->readable){
+        return -1;
+      }
+      *addrpte &= ~PTE_R;
+    }
+    if (prot & PROT_WRITE){
+      if (!f->writable && !(flags & MAP_PRIVATE)){
+        return -1;
+      }
+      *addrpte &= ~PTE_W;
+    }
+    p->sz += PGSIZE;
+    *addrpte |= (PTE_V | PTE_U | PTE_LZ); 
+    for (j=0;j<16;j++){
+      if (p->vma[j].used){
+        continue;
+      }
+      break;
+    }
+    if (j == 16){
+      panic("j == 16\n");
+    }
+    if (tmp == 0){
+      tmp = 1;
+      base_addr = addr;
+    }
+    if (last != -1){
+      p->vma[last].next = &p->vma[j];
+    }
+    last = j;
+    p->vma[j].addr = addr;
+    p->vma[j].len = PGSIZE>len?len:PGSIZE;
+    p->vma[j].prot = prot;
+    p->vma[j].f = f;
+    filedup(p->vma[j].f);
+    p->vma[j].flags = flags;
+    p->vma[j].used = 1;
+    p->vma[j].offset = offset;
+    p->vma[j].next = 0;
+    p->vma[j].traped = 0;
+    if (len <= PGSIZE)
+      break;
+    len -= PGSIZE;
+    offset += PGSIZE;
+    addr += PGSIZE;
+  }
+  
+  return base_addr;
+}
+
+
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  size_t len;
+  int tmp, idx;
+  argaddr(0, &addr);
+  argint(1, &tmp);
+  len = tmp;
+  struct proc *p = myproc();
+  for (idx=0;idx<16;idx++){
+    if (PGROUNDDOWN(addr) == PGROUNDDOWN(p->vma[idx].addr) && p->vma[idx].used){
+      break;
+    }
+  }
+  struct vma * tmp_vma;
+  if (p->vma[idx].flags & MAP_SHARED && p->vma[idx].f->writable){ // write to file
+    tmp_vma = &p->vma[idx];
+    while (tmp_vma){
+      begin_op();
+      ilock(p->vma[idx].f->ip);
+      writei(tmp_vma->f->ip, 1, tmp_vma->addr, tmp_vma->offset, tmp_vma->len);
+      iunlock(p->vma[idx].f->ip);
+      end_op();
+      tmp_vma = tmp_vma->next;
+      if (tmp <= PGSIZE){
+        break;
+      }
+      tmp -= PGSIZE;
+    }
+  }
+  tmp_vma = &p->vma[idx];
+  while (tmp_vma){
+    if (tmp_vma->used > 1){
+      tmp_vma->used --;
+      tmp_vma = tmp_vma->next;
+      continue;
+    }
+    p->sz -= PGSIZE;
+    if (tmp_vma->traped == 1){
+      
+      uvmunmap(p->pagetable, tmp_vma->addr, 1, 1);
+    }
+    else{
+      uvmunmap(p->pagetable, tmp_vma->addr, 1, 0);
+    }
+    tmp_vma->addr = 0;
+    tmp_vma->len = 0;
+    tmp_vma->prot = 0;
+    fileclose(tmp_vma->f);
+    tmp_vma->f = 0;
+    tmp_vma->flags = 0;
+    tmp_vma->used = 0;
+    tmp_vma->offset = 0;
+    tmp_vma->traped = 0;
+    tmp_vma = tmp_vma->next;
+    if (len <= PGSIZE){
+      break;
+    }
+    len -= PGSIZE;
+  }
+  return 0;
+}

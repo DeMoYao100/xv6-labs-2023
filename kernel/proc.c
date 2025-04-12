@@ -309,7 +309,12 @@ fork(void)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
-
+  for (int i=0;i<16;i++){
+    if (p->vma[i].used){
+      p->vma[i].used ++;
+    }
+  }
+  memmove(np->vma, p->vma, sizeof(struct vma) * 16);
   pid = np->pid;
 
   release(&np->lock);

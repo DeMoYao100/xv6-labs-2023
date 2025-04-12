@@ -1,10 +1,14 @@
 #ifdef LAB_MMAP
 typedef unsigned long size_t;
 typedef long int off_t;
+void *mmap(void*, size_t, int, int, int, off_t);
+int munmap(void*, size_t);
 #endif
 struct stat;
 
 // system calls
+
+
 int fork(void);
 int exit(int) __attribute__((noreturn));
 int wait(int*);

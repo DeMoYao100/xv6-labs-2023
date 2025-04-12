@@ -6,6 +6,10 @@
 #include "proc.h"
 #include "defs.h"
 
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
+
 struct spinlock tickslock;
 uint ticks;
 
@@ -65,7 +69,70 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  } 
+  else if (r_scause() == 0xd){ // read error
+    int idx;
+    uint64 va = r_stval();
+    pte_t *pte = walk(p->pagetable, va, 1);
+    *pte |= PTE_R;
+    *pte &= ~PTE_LZ;
+    for (idx=0;idx<16;idx++){
+      if (PGROUNDDOWN(va) == PGROUNDDOWN(p->vma[idx].addr) && p->vma[idx].used){
+        break;
+      }
+    }
+    if (idx == 16){
+      panic("error store\n");
+    }
+    char* pa = kalloc();
+    p->vma[idx].traped=1;
+    memset(pa, 0, PGSIZE);
+    ilock(p->vma[idx].f->ip);
+    readi(p->vma[idx].f->ip, 0, (uint64)pa, p->vma[idx].offset, PGSIZE);
+    // filedup(p->vma[idx].f);
+    iunlock(p->vma[idx].f->ip);
+    if (mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)pa, PTE_FLAGS(*pte)) !=0){
+      panic("mappages error\n");
+    };
+  }
+
+  else if (r_scause() == 0xf){ // write error
+    int idx;
+    uint64 va = r_stval();
+    pte_t *pte = walk(p->pagetable, va, 1);
+    
+    for (idx=0;idx<16;idx++){
+      if (PGROUNDDOWN(va) == PGROUNDDOWN(p->vma[idx].addr) && p->vma[idx].used){
+        break;
+      }
+    } if (idx == 16){
+      panic("error store\n");
+    }
+    
+    if (p->vma[idx].f->writable){
+      *pte &= ~PTE_LZ;
+      *pte |= PTE_W;
+    }
+    else if (p->vma[idx].flags & 0x02){
+      *pte |= PTE_W;
+      *pte &= ~PTE_LZ;
+    }
+    else{
+      panic("should not been write\n");
+    }
+    char* pa = kalloc();
+    p->vma[idx].traped=1;
+    memset(pa, 0, PGSIZE);
+    ilock(p->vma[idx].f->ip);
+    readi(p->vma[idx].f->ip, 0, (uint64)pa, p->vma[idx].offset, PGSIZE);
+    // filedup(p->vma[idx].f);
+    iunlock(p->vma[idx].f->ip);
+    if (mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)pa, PTE_FLAGS(*pte)) !=0){
+      panic("mappages error\n");
+    };
+  }
+
+  else if((which_dev = devintr()) != 0){
     // ok
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);

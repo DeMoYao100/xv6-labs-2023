@@ -36,6 +36,7 @@ err(char *why)
 void
 _v1(char *p)
 {
+  // printf("[+] v1 started\n"); 
   int i;
   for (i = 0; i < PGSIZE*2; i++) {
     if (i < PGSIZE + (PGSIZE/2)) {
@@ -162,7 +163,7 @@ mmap_test(void)
     err("close (3)");
 
   // check that the mapping still works after close(fd).
-  _v1(p);
+  _v1(p); //
 
   // write the mapped memory.
   for (i = 0; i < PGSIZE*2; i++)
@@ -184,8 +185,11 @@ mmap_test(void)
     char b;
     if (read(fd, &b, 1) != 1)
       err("read (1)");
-    if (b != 'Z')
+    if (b != 'Z'){
+      printf("error: %c\n",b);
       err("file does not contain modifications");
+    }
+      
   }
   if (close(fd) == -1)
     err("close (4)");

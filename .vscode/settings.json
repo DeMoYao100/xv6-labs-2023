@@ -1,0 +1,9 @@
+{
+    "C_Cpp.errorSquiggles": "disabled",
+    "files.associations": {
+        "*.inc": "cpp",
+        "*.s": "cpp",
+        "lambda-for.C": "cpp",
+        "vector": "c"
+    }
+}
